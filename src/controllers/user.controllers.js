@@ -266,4 +266,70 @@ const updateCoverImage = asyncHandler(async(req,res)=>{
 
      return res.status(200).json(new ApiResponce(200,user,"coverImage Changed Successfully"))
 })
-export {registerUSer,loginUser,logoutUSer,refreshAccessToken,changeCurrentpassword,getCurrentUser,updateAccountDetails,updateUserAvatar,updateCoverImage}
+
+const getUserChannelProfile = asyncHandler(async(req,res)=>{
+      const {username} = req.params
+       if(!username?.trim()){
+        throw new ApiError(400,"username is missing")
+       }
+
+       const channel = await User.aggregate([{
+        $match:{
+            username:username?.toLowerCase()
+        }
+       },
+       {
+        $lookup:{
+            from:"subscriptions",
+            localField:"_id",
+            foreignField:"channel",
+            as:"subscribers"
+        }
+       },
+       {
+        $lookup:{
+            from:"subscriptions",
+            localField:"_id",
+            foreignField:"subscriber",//tell how many channel i subscribed
+            as:"subscribedTo"
+        }
+       },
+       {
+        $addFields:{
+              subscriberCount:{
+                    $size:"$subscribers"
+              },
+              channelSubcribedToCount:{
+                 $size:"$subscribedTo"
+              },
+              isSubscribed:{
+                $cond:{
+                    if:{$in:[req.user?._id,"$subscribers.subscriber"]},
+                    then:true,
+                    else:false
+                }
+              }
+        }
+       },
+       {
+        $project:{
+            fullName:1,
+            userName:1,
+            subscriberCount:1,
+            channelSubcribedToCount:1,
+            isSubscribed:1,
+            coverImage:1,
+            email:1
+        }
+       }
+    ])
+
+    if(!channel?.length){
+        throw new ApiError(400,"channel does not exist")
+    }
+    return res.status(200).json(
+        new ApiResponce(200,channel[0],"user channel fetched sucefully")
+    )
+    
+})
+export {registerUSer,loginUser,getUserChannelProfile,logoutUSer,refreshAccessToken,changeCurrentpassword,getCurrentUser,updateAccountDetails,updateUserAvatar,updateCoverImage}
